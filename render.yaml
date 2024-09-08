@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: nestjs-python-app
+    env: node
+    buildCommand: |
+      pnpm install
+      cd python && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && cd ..
+      pnpm run build
+    startCommand: pnpm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
