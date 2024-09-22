@@ -1,7 +1,6 @@
-// src/stock/stock.service.ts
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 
 @Injectable()
@@ -14,7 +13,7 @@ export class StockService implements OnModuleInit {
   }
 
   private async startPythonScript(): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const pythonScriptPath = join(
         __dirname,
         '..',
@@ -22,7 +21,7 @@ export class StockService implements OnModuleInit {
         'python',
         'stock_data_fetcher.py',
       );
-      this.pythonProcess = spawn('python', [pythonScriptPath]);
+      this.pythonProcess = spawn('python3', [pythonScriptPath]);
 
       let dataBuffer = '';
 
@@ -43,6 +42,11 @@ export class StockService implements OnModuleInit {
 
       this.pythonProcess.stderr.on('data', (data) => {
         console.error(`Python script error: ${data}`);
+      });
+
+      this.pythonProcess.on('error', (error) => {
+        console.error(`Failed to start Python script: ${error}`);
+        reject(error);
       });
 
       this.pythonProcess.on('close', (code) => {
@@ -79,5 +83,53 @@ export class StockService implements OnModuleInit {
       return this.stockData[symbol] || null;
     }
     return this.stockData;
+  }
+
+  async getHistoricalData(): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const pythonScriptPath = join(
+        __dirname,
+        '..',
+        '..',
+        'python',
+        'stock_data_fetcher.py',
+      );
+      const pythonProcess = spawn('python3', [pythonScriptPath, 'historical']);
+
+      let dataBuffer = '';
+
+      pythonProcess.stdout.on('data', (data) => {
+        dataBuffer += data.toString();
+
+        // Attempt to parse JSON when a newline is detected
+        if (dataBuffer.includes('\n')) {
+          try {
+            const parsedData = JSON.parse(dataBuffer);
+            resolve(parsedData);
+            dataBuffer = ''; // Clear the buffer after successful parsing
+          } catch (error) {
+            console.error('Error parsing Python script output:', error);
+            reject(error);
+          }
+        }
+      });
+
+      pythonProcess.stderr.on('data', (data) => {
+        console.error(`Python script error: ${data}`);
+        reject(data);
+      });
+
+      pythonProcess.on('error', (error) => {
+        console.error(`Failed to start Python script: ${error}`);
+        reject(error);
+      });
+
+      pythonProcess.on('close', (code) => {
+        console.log(`Python script exited with code ${code}`);
+        if (code !== 0) {
+          reject(new Error(`Python script exited with code ${code}`));
+        }
+      });
+    });
   }
 }
