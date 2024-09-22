@@ -26,7 +26,7 @@ def get_live_data(symbol):
         data = yf.download(symbol, start=start_date, end=end_date, interval="1d")
         return data
     except Exception as e:
-        print(f"Error downloading data for {symbol}: {str(e)}")
+        print(f"Error downloading data for {symbol}: {str(e)}", file=sys.stderr)
         return None
 
 def get_stock_info(symbol):
@@ -34,7 +34,7 @@ def get_stock_info(symbol):
         stock = yf.Ticker(symbol)
         return stock.info
     except Exception as e:
-        print(f"Error fetching info for {symbol}: {str(e)}")
+        print(f"Error fetching info for {symbol}: {str(e)}", file=sys.stderr)
         return {}
 
 def format_data(symbol, data, info):
@@ -62,22 +62,39 @@ def format_data(symbol, data, info):
         "Dividend Yield": info.get('dividendYield', 'N/A'),
     }
 
+def get_historical_data(symbol):
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=5)
+        data = yf.download(symbol, start=start_date, end=end_date, interval="1d")
+        return data.to_dict(orient='records')
+    except Exception as e:
+        print(f"Error downloading historical data for {symbol}: {str(e)}", file=sys.stderr)
+        return []
+
 if __name__ == "__main__":
     symbols = get_nifty50_symbols()
 
-    while True:
-        try:
-            formatted_data = []
-            for symbol in symbols:
-                live_data = get_live_data(symbol)
-                stock_info = get_stock_info(symbol)
-                stock_data = format_data(symbol, live_data, stock_info)
-                if stock_data:
-                    formatted_data.append(stock_data)
-            
-            print(json.dumps(formatted_data), flush=True)
-            sys.stdout.flush()
-            time.sleep(300)
-        except Exception as e:
-            print(f"An error occurred: {e}", file=sys.stderr)
-            time.sleep(60)
+    if len(sys.argv) > 1 and sys.argv[1] == 'historical':
+        historical_data = {}
+        for symbol in symbols:
+            historical_data[symbol] = get_historical_data(symbol)
+        print(json.dumps(historical_data), flush=True)
+        sys.stdout.flush()
+    else:
+        while True:
+            try:
+                formatted_data = []
+                for symbol in symbols:
+                    live_data = get_live_data(symbol)
+                    stock_info = get_stock_info(symbol)
+                    stock_data = format_data(symbol, live_data, stock_info)
+                    if stock_data:
+                        formatted_data.append(stock_data)
+                
+                print(json.dumps(formatted_data), flush=True)
+                sys.stdout.flush()
+                time.sleep(300)
+            except Exception as e:
+                print(f"An error occurred: {e}", file=sys.stderr)
+                time.sleep(60)
